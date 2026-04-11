@@ -1,0 +1,22 @@
+# Configuration
+Config.ini
+
+# Bases de données locales
+*.db
+
+# Environnement Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Sorties et graphiques
+*.png
+*.jpg
+*.jpeg
+*.pdf
+
+# Logs
+*.log
