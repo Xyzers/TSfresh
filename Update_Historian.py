@@ -60,13 +60,23 @@ def update_local_database(db_path="maintenance_pilote_400j.db", config_path="Con
     config = configparser.ConfigParser()
     config.read(config_path)
     
+    configured_start = pd.to_datetime(config.get('Period', 'start_time', fallback='2025-01-19 00:00:00'))
+    end_cfg_raw = config.get('Period', 'end_time', fallback='').strip()
+    configured_end = pd.to_datetime(end_cfg_raw) if end_cfg_raw else pd.Timestamp(datetime.now())
+
     if not last_dt:
-        last_dt = config.get('Period', 'start_time', fallback='2025-01-19 00:00:00')
-        
-    now = datetime.now()
-    start_dt = pd.to_datetime(last_dt)
+        start_dt = configured_start
+    else:
+        # Evite de retraiter en dehors de la fenetre demandee
+        start_dt = max(pd.to_datetime(last_dt), configured_start)
+
+    now = min(pd.Timestamp(datetime.now()), configured_end)
+
+    if start_dt >= now:
+        logging.info(f" Aucune mise a jour necessaire (start={start_dt}, end={now}).")
+        return
     
-    logging.info(f" Début de l'importation par lots de {start_dt} à {now}...")
+    logging.info(f" Debut de l'importation par lots de {start_dt} a {now}...")
 
     tags = {
         'intensite': config.get('Tags', 'intensite'),

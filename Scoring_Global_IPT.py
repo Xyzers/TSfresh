@@ -28,6 +28,8 @@ def charger_config_complete(config_path="Config.ini"):
         'maint_nettoyage': lire_dates('Maintenance', 'nettoyage_assiettes'),
         'maint_nep': lire_dates('Maintenance', 'nep'),
         'maint_autres': lire_dates('Maintenance', 'autres'),
+        'period_start': config.get('Period', 'start_time', fallback='').strip(),
+        'period_end': config.get('Period', 'end_time', fallback='').strip(),
         
         'seuil_alerte': config.getfloat('Scoring', 'seuil_ipt_alerte', fallback=1.3),
         'seuil_critique': config.getfloat('Scoring', 'seuil_ipt_critique', fallback=1.6),
@@ -57,10 +59,25 @@ def calculer_ipt_global(db_path="maintenance_pilote_400j.db", config_path="Confi
     
     df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed')
     df = df.sort_values('timestamp')
+
+    period_start = pd.to_datetime(params['period_start']) if params['period_start'] else None
+    period_end = pd.to_datetime(params['period_end']) if params['period_end'] else None
+    if period_start is not None:
+        df = df[df['timestamp'] >= period_start]
+    if period_end is not None:
+        df = df[df['timestamp'] <= period_end]
+
+    if df.empty:
+        logging.warning(" Aucune donnee dans la periode demandee pour le scoring.")
+        return
+
     df = df[df['t_latence_ms'] >= 0].copy()
 
     features = ['v_peak', 'i_nervosite', 't_elec_ms', 't_latence_ms', 't_relax_ms']
-    df = df.dropna(subset=features).copy()
+    # i_nervosite peut etre absente sur certaines campagnes historiques :
+    # on ne doit pas perdre la periode complete pour ce seul capteur.
+    mandatory_features = ['v_peak', 't_elec_ms', 't_latence_ms', 't_relax_ms']
+    df = df.dropna(subset=mandatory_features).copy()
 
     df['delta_temps'] = df['timestamp'].diff()
     seuil_delta = timedelta(hours=params['seuil_arret_h'])
@@ -122,13 +139,16 @@ def calculer_ipt_global(db_path="maintenance_pilote_400j.db", config_path="Confi
 
     # --- LOGIQUE IPT (Z-SCORE PIECEWISE) ---
     z_impact = (df['v_peak'] - df['v_peak_ref']) / df['v_peak_std']
-    z_nerv = (df['i_nervosite'] - df['i_nervosite_ref']) / df['i_nervosite_std']
+    z_nerv_raw = (df['i_nervosite'] - df['i_nervosite_ref']) / df['i_nervosite_std']
+    # Si i_nervosite est manquante, sa contribution devient neutre (0)
+    z_nerv = np.where(np.isfinite(z_nerv_raw), z_nerv_raw, 0.0)
     
     t_total = df['t_elec_ms'] + df['t_latence_ms'] + df['t_relax_ms']
     t_total_ref = df['t_elec_ms_ref'] + df['t_latence_ms_ref'] + df['t_relax_ms_ref']
     t_total_std = df['t_elec_ms_std'] + df['t_latence_ms_std'] + df['t_relax_ms_std']
     
-    z_time = (t_total - t_total_ref) / t_total_std
+    z_time_raw = (t_total - t_total_ref) / t_total_std
+    z_time = np.where(np.isfinite(z_time_raw), z_time_raw, 0.0)
 
     df['ipt_global'] = 1.0 + 0.2 * (
         0.40 * np.maximum(0, z_impact) + 

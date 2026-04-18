@@ -53,6 +53,9 @@ def analyser_signatures_haute_fidelite(db_path="maintenance_pilote_400j.db", con
         # Paramètres heuristiques de détection des lavages (NEP)
         nep_burst_window_h = config.getfloat('Thresholds', 'nep_burst_window_h', fallback=3.0)
         nep_burst_min_events = config.getint('Thresholds', 'nep_burst_min_events', fallback=7)
+
+        period_start_raw = config.get('Period', 'start_time', fallback='').strip()
+        period_end_raw = config.get('Period', 'end_time', fallback='').strip()
         
         logging.info(f" Config : Déclenchement > {saut_declencheur}A | Fenêtre Point Bleu : {fenetre_bleue_sec}s")
         logging.info(f" Config NEP : Rafale > {nep_burst_min_events} événements en {nep_burst_window_h}h => exclusion")
@@ -64,9 +67,39 @@ def analyser_signatures_haute_fidelite(db_path="maintenance_pilote_400j.db", con
     conn = sqlite3.connect(db_path)
     logging.info(" Lecture de la base de données (raw_historian)...")
     
-    # On charge les données
-    query = "SELECT DateTime, intensite, vibration, debit_entree, vitesse FROM raw_historian ORDER BY DateTime"
-    df = pd.read_sql(query, conn)
+    # On charge uniquement la fenetre temporelle demandee pour limiter la charge CPU/RAM
+    params = []
+    if period_start_raw and period_end_raw:
+        query = (
+            "SELECT DateTime, intensite, vibration, debit_entree, vitesse "
+            "FROM raw_historian "
+            "WHERE DateTime >= ? AND DateTime <= ? "
+            "ORDER BY DateTime"
+        )
+        params = [period_start_raw, period_end_raw]
+        logging.info(f" Filtre periode actif: {period_start_raw} -> {period_end_raw}")
+    elif period_start_raw:
+        query = (
+            "SELECT DateTime, intensite, vibration, debit_entree, vitesse "
+            "FROM raw_historian "
+            "WHERE DateTime >= ? "
+            "ORDER BY DateTime"
+        )
+        params = [period_start_raw]
+        logging.info(f" Filtre periode actif: DateTime >= {period_start_raw}")
+    elif period_end_raw:
+        query = (
+            "SELECT DateTime, intensite, vibration, debit_entree, vitesse "
+            "FROM raw_historian "
+            "WHERE DateTime <= ? "
+            "ORDER BY DateTime"
+        )
+        params = [period_end_raw]
+        logging.info(f" Filtre periode actif: DateTime <= {period_end_raw}")
+    else:
+        query = "SELECT DateTime, intensite, vibration, debit_entree, vitesse FROM raw_historian ORDER BY DateTime"
+
+    df = pd.read_sql(query, conn, params=params)
     
     if df.empty:
         logging.warning(" La table raw_historian est vide !")
