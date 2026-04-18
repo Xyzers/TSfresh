@@ -1,6 +1,7 @@
 # 🚀 Projet TSFresh Antigravity : Maintenance Prédictive
 
-Ce projet est un outil d'analyse de données industrielles dédié à la **maintenance prédictive de centrifugeuses**. Il permet de détecter automatiquement les cycles de fonctionnement (débourbages, lavages NEP) à partir des signatures électriques et vibratoires, d'extraire des indicateurs de santé et de calculer un score de performance (**IPT - Indice de Performance Technique**).
+Ce projet est un outil d'analyse de données industrielles dédié à la **maintenance prédictive de centrifugeuses**. Il permet de détecter automatiquement les cycles de fonctionnement (débourbages, lavages NEP) à partir des signatures électriques et vibratoires, d'extraire des indicateurs de santé et de calculer un score de performance (**IPT - Indice de Performance Technique**). 
+
 
 ## 🎯 Objectifs
 - **Surveillance automatisée** : Récupération des données haute fréquence depuis Wonderware Historian.
